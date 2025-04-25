@@ -44,7 +44,7 @@ Adicionalmente se incluyen las variables Time y Amount que son relevantes para d
 """, unsafe_allow_html=True)
 
 if "df" not in st.session_state:
-    df = pd.read_csv("https://zenodo.org/records/7395559/files/creditcard.csv")
+    df = pd.read_parquet("creditcard.parquet")
     st.session_state.df = df
 else:
     df = st.session_state.df
@@ -655,11 +655,6 @@ def plot_reconstruction_error_and_roc(errors, y_test):
     fig.update_yaxes(title_text="TPR", row=1, col=2)
 
     return fig
-
-st.write(f"X_train shape: {X_train.shape}")
-st.write(f"X_test shape: {X_test.shape}")
-
-st.write(X_test_tensor.shape)
 
 errors_ae1 = evaluate_autoencoder(ae1, X_test_tensor, X_test, y_test)
 errors_ae2 = evaluate_autoencoder(ae2, X_test_tensor, X_test, y_test)
