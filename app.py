@@ -43,11 +43,7 @@ Adicionalmente se incluyen las variables Time y Amount que son relevantes para d
 <br>
 """, unsafe_allow_html=True)
 
-if "df" not in st.session_state:
-    df = pd.read_parquet("creditcard.parquet")
-    st.session_state.df = df
-else:
-    df = st.session_state.df
+df = pd.read_parquet("creditcard.parquet")
 
 st.dataframe(df.head(),hide_index=True)
 
