@@ -560,7 +560,7 @@ from torch.utils.data import DataLoader, TensorDataset
 torch.manual_seed(42)
 
 # Si hay GPU, úsala
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 # Convierte los datos en tensores
 X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32).to(device)
@@ -571,7 +571,7 @@ train_loader = DataLoader(TensorDataset(X_train_tensor, X_train_tensor), batch_s
 test_loader = DataLoader(TensorDataset(X_test_tensor, X_test_tensor), batch_size=64, shuffle=False)
 
 ae1 = AE1()
-ae1.load_state_dict(torch.load('ae1.pth'))
+ae1.load_state_dict(torch.load('ae1.pth',map_location=device))
 ae1.to(device)
 
 ae2 = AE2()
