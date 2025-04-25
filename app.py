@@ -656,6 +656,9 @@ def plot_reconstruction_error_and_roc(errors, y_test):
 
     return fig
 
+st.write(f"X_train shape: {X_train.shape}")
+st.write(f"X_test shape: {X_test.shape}")
+
 st.write(X_test_tensor.shape)
 
 errors_ae1 = evaluate_autoencoder(ae1, X_test_tensor, X_test, y_test)
