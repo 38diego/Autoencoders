@@ -575,11 +575,11 @@ ae1.load_state_dict(torch.load('ae1.pth',map_location=device))
 ae1.to(device)
 
 ae2 = AE2()
-ae2.load_state_dict(torch.load('ae2.pth'))
+ae2.load_state_dict(torch.load('ae2.pth',map_location=device))
 ae2.to(device)
 
 ae3 = AE3()
-ae3.load_state_dict(torch.load('ae3.pth'))
+ae3.load_state_dict(torch.load('ae3.pth',map_location=device))
 ae3.to(device)
 
 def evaluate_autoencoder(model, X_test_tensor, X_test_df, y_test):
