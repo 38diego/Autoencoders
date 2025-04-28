@@ -332,11 +332,12 @@ with col1:
 
 with col2:
     scaler = RobustScaler()
-    df['Amount2'] = scaler.fit_transform(df[['Amount']])
+    df2 = df.copy()
+    df2['Amount2'] = scaler.fit_transform(df[['Amount']])
     
     if 'fig_boxplot_scaled' not in st.session_state:    
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.boxplot(x='Class', y='Amount2', data=df, ax=ax)
+        sns.boxplot(x='Class', y='Amount2', data=df2, ax=ax)
         ax.set_title('Distribución del Monto escalado')
         ax.set_xlabel('Clase')
         ax.set_ylabel('Monto')
@@ -691,6 +692,94 @@ considerablemente peor. Esto sugiere que aumentar la capacidad del modelo no nec
 puede llevar al sobreajuste, un indicio de esto es que el 75% de los errores para datos no fraudulentos de AE1 es de 3 unidades y para AE2 es de 6 unidades, esto aumenta
 para AE3 llegando a las 12 unidades, lo que nos indica que a comparacion de los otros modelos, este no genarilo bien y se ajusto mucho a la estructura de los datos de 
 entrenamiento. En contraste, modelos más compactos como AE1 y AE2 logran generalizar mejor el comportamiento normal y amplifican los errores de reconstrucción frente a 
-fraudes, favoreciendo una detección más efectiva. En conclusión, una arquitectura más simple tiende a ofrecer no necesariamente ofrece un mal rendimineto, en este caso 
-una arquitectura siemple puede ofrecer mejores resultados.
+fraudes, favoreciendo una detección más efectiva. En conclusión, la eleccion de los hiperparametros es fundamental para el rendimiento del modelo, y en este caso,
+la arquitectura AE1 es la que mejor se adapta a los datos y cumple con los requisitos de detección de fraudes, mientras que AE3 presenta un rendimiento deficiente ya que
+tiene una arquitectura mas compleja que los datos y esto lleva a un sobreajuste.
+</div>
 """, unsafe_allow_html=True) 
+
+st.markdown(f"""
+<div style='text-align: center; font-size: 32px; font-weight: bold'>            
+Selección de umbral óptimo
+</div>
+<div style='font-size:18px; text-align: justify'>
+Establecer un umbral apropiado es fundamental en tareas de detección de anomalías. Se
+proponen dos métodos: (1) utilizar el percentil 99 del error en transacciones normales como referencia estadística, y (2) definir el
+umbral que minimice el costo esperado dada la penalización de $10 por falso positivo y $500 por falso negativo, se probaran ambos métodos 
+y se compararan los resultados.
+</div>
+""", unsafe_allow_html=True)
+
+X_test_umbral = X_test.copy()
+X_test_umbral["error"] = errors_ae1
+X_test_umbral["true_label"] = y_test.values
+
+def calcular_costo_umbral(df, umbral, costo_fp=10, costo_fn=500):
+    pred = (df['error'] > umbral).astype(int)
+    tn, fp, fn, tp = confusion_matrix(df['true_label'], pred).ravel()
+    costo_total = fp * costo_fp + fn * costo_fn
+    return costo_total, fp, fn, tp, tn
+
+# Generar múltiples posibles umbrales (por ejemplo, percentiles del error)
+umbrales = np.percentile(X_test_umbral[X_test_umbral["true_label"] == 0]['error'], np.linspace(0, 99, 100))
+
+if 'resultados_df' not in st.session_state:
+    # Evaluar el costo para cada umbral
+    resultados = []
+    for u,p in zip(umbrales,np.linspace(0, 99, 100)):
+        costo, fp, fn, tp, tn = calcular_costo_umbral(X_test_umbral, u)
+        resultados.append({"percentil": p, 'umbral': u, 'costo': costo, 'fp': fp, 'fn': fn, 'tp': tp, 'tn': tn})
+
+    resultados_df = pd.DataFrame(resultados)
+    st.session_state.resultados_df = resultados_df
+
+else:
+    resultados_df = st.session_state.resultados_df
+
+# Encontrar el umbral que minimiza el costo
+mejor = resultados_df.loc[resultados_df['costo'].idxmin()]
+#st.write(f"Umbral óptimo: {mejor['umbral']:.4f} con costo total: {mejor['costo']}")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.dataframe(resultados_df, use_container_width=True)
+
+with col2:
+    umbralz = st.slider(
+        "**Selecciona un umbral**",
+        min_value=int(resultados_df['percentil'].min()),
+        max_value=int(resultados_df['percentil'].max()),
+        value=int(resultados_df['percentil'].iloc[1]),  # valor inicial
+        step=1  # o el paso que quieras
+    )
+    y_pred = (X_test_umbral['error'] > resultados_df.loc[resultados_df['percentil'] == umbralz, 'umbral'].values[0]).astype(int)
+    cm = confusion_matrix(X_test_umbral['true_label'], y_pred)
+    reporte = classification_report(X_test_umbral['true_label'], y_pred, output_dict=True, digits=4)
+    st.markdown("""
+                <div style='text-align: center; font-size: 20px'>
+                <b>Matriz de confusion</b>
+                </div>""", unsafe_allow_html=True)
+    
+    st.dataframe(pd.DataFrame(cm, index=["No Fraude (0)", "Fraude (1)"], columns=["No Fraude (0)", "Fraude (1)"]), use_container_width=True)
+    st.markdown("""
+                <div style='text-align: center; font-size: 20px'>
+                <b>Metricas</b>
+                </div>""", unsafe_allow_html=True)
+   
+    st.dataframe(pd.DataFrame(reporte).drop(index=["support"]).drop(columns=["accuracy", "macro avg", "weighted avg"]).transpose(), use_container_width=True)
+    
+
+st.markdown("""
+<div style='font-size:18px; text-align: justify'>
+Al analizar los resultados, vemos que el umbral que minimiza el costo corresponde al percentil 1, donde prácticamente todo es etiquetado como fraude. 
+Esto concuerda con el altísimo costo de los falsos negativos ($500 frente a $10 por falso positivo), lo que económicamente justifica ser extremadamente conservadores 
+y clasificar casi todo como sospechoso. Pero, operativamente esto genera un problema importante: aunque el modelo minimiza el costo, en la práctica funciona casi como 
+si no tuviéramos un modelo real, ya que obliga a revisar manualmente casi todas las transacciones, anulando la eficiencia que un sistema de detección automatizado 
+debería aportar. La alta tasa de falsos positivos implica un volumen de trabajo enorme, y además podría generar fatiga y una pérdida de confianza en el sistema.
+Por lo que un umbral como el percentil 35 puede ser una opción a contemplar por que ofrece un equilibrio entre costo y operación. Aunque su costo total es ligeramente 
+mayor que el mínimo (12,700 frente a 11,870), logra una reducción significativa en falsos positivos, pasando de casi 490 a 320, lo que implica una carga operativa mucho 
+más manejable. Además, mantiene un recall muy alto para el fraude (96.14%), asegurando que casi todos los casos de fraude reales sigan siendo detectados. Este enfoque 
+permite no solo cuidar los costos económicos, sino también mejorar la eficiencia operativa, enfocando los recursos en revisar alertas más relevantes y evitando la saturación de los analistas.
+</div>
+""", unsafe_allow_html=True)
