@@ -706,8 +706,9 @@ Selección de umbral óptimo
 Establecer un umbral apropiado es fundamental en tareas de detección de anomalías. Se
 proponen dos métodos: (1) utilizar el percentil 99 del error en transacciones normales como referencia estadística, y (2) definir el
 umbral que minimice el costo esperado dada la penalización de $10 por falso positivo y $500 por falso negativo, se probaran ambos métodos 
-y se compararan los resultados.
+y se compararan los resultados para nuestro modelo AE1 que anteriormente se vio que es el mejor.
 </div>
+<br>
 """, unsafe_allow_html=True)
 
 X_test_umbral = X_test.copy()
@@ -740,7 +741,7 @@ else:
 mejor = resultados_df.loc[resultados_df['costo'].idxmin()]
 #st.write(f"Umbral óptimo: {mejor['umbral']:.4f} con costo total: {mejor['costo']}")
 
-col1, col2 = st.columns(2)
+col1, _,  col2 = st.columns([0.6, 0.1, 0.6])
 
 with col1:
     st.dataframe(resultados_df, use_container_width=True)
@@ -783,3 +784,65 @@ más manejable. Además, mantiene un recall muy alto para el fraude (96.14%), as
 permite no solo cuidar los costos económicos, sino también mejorar la eficiencia operativa, enfocando los recursos en revisar alertas más relevantes y evitando la saturación de los analistas.
 </div>
 """, unsafe_allow_html=True)
+
+st.markdown(f"""
+<div style='text-align: center; font-size: 32px; font-weight: bold'>            
+Interpretación de resultados
+</div>
+            
+<div style='font-size:18px; text-align: justify'>
+Los métodos de detección de anomalías, como los autoencoders, son herramientas poderosas para identificar comportamientos inusuales en datos complejos. Sin embargo, una de las principales limitaciones de estos modelos es su falta de interpretabilidad, lo que dificulta entender por qué una observación, como una transacción, ha sido clasificada como fraudulenta.
+A pesar de esta dificultad, existen técnicas que pueden ayudarnos a interpretar los resultados de un autoencoder. En este caso, se utilizará el error de reconstrucción por variable como una forma de entender qué características están contribuyendo más a la detección de una anomalía.
+El error de reconstrucción se refiere a la diferencia entre los valores originales de entrada y los valores reconstruidos por el modelo. Un error alto indica que el modelo no logró reconstruir adecuadamente la entrada, lo cual sugiere que esa observación se desvía del comportamiento aprendido como normal. Dado que el modelo ha sido entrenado únicamente con datos de transacciones no fraudulentas, ha aprendido a representar correctamente los patrones habituales. Por lo tanto, un alto error de reconstrucción es un indicio de que la transacción presenta un comportamiento atípico o anómalo.
+Al analizar este error de reconstrucción variable por variable, es posible identificar cuáles de ellas están contribuyendo más al error total. Esto nos permite entender qué aspectos específicos del comportamiento de la transacción están fuera de lo esperado, y por qué el modelo la ha clasificado como potencialmente fraudulenta.
+En este grafica podemos ver la distribucion de errores para cada variable para el conjunto de entrenamiento y el error en cada variable para un dato clasificado como fraudulento        
+</div>""", unsafe_allow_html=True)
+
+if 'ejemplo' not in st.session_state:
+    ae1.eval()
+    with torch.no_grad():
+        reconstructions_train = ae1(X_train_tensor).cpu().numpy()
+        reconstructions_test = ae1(X_test_tensor).cpu().numpy()
+
+    train_error = np.array((reconstructions_train - X_train.values)**2)
+    test_error = np.array((reconstructions_test - X_test.values)**2)
+
+    ejemplo = test_error[np.argmax(np.mean(test_error, axis=1))]
+
+    # Crear la figura y los ejes del plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    flierprops = dict(marker='o', markerfacecolor='black', markersize=4, alpha=0.4)
+    ax.boxplot(train_error, vert=False, flierprops=flierprops, zorder=1,label="Error de reconstrucción (train)")
+
+    for i in range(len(ejemplo)):
+        ax.scatter(ejemplo[i], i + 1, color='red', label='Dato fraudulento' if i == 0 else "", zorder=3, s=10)
+
+    ax.set_yticks(range(1, len(X_train.columns) + 1))
+    ax.set_yticklabels(X_train.columns)
+
+    ax.set_xlabel('Error de reconstrucción')
+
+    ax.legend()
+
+    # Guardar el plot en session_state
+    st.session_state['ejemplo'] = fig
+    #st.session_state['fig'] = 
+
+    # Mostrar el plot
+
+    _, col1, _ = st.columns([0.2, 0.8, 0.2])
+    with col1:
+        st.pyplot(st.session_state['ejemplo'])
+
+else:
+    _, col1, _ = st.columns([0.2, 0.8, 0.2])
+    with col1:
+        st.pyplot(st.session_state['ejemplo'])
+
+st.markdown("""
+<div style='font-size:18px; text-align: justify'>
+En este caso, se observa que variables como principalmente V7 y V8 presentan errores de reconstrucción más altos al promedio de las transacciónes normales. 
+Esto sugiere que estas variables contribuyen de forma importante a que el modelo detecte esta transacción como fuera de lo habitual. Este metodo de explicabilidad
+o otros metodos existentes como LIME o SHAP pueden ayudar a entender mejor el comportamiento del modelo y a identificar las características que son más relevantes 
+para la detección de fraudes, lo que da un plus para el modelo y la ayuda que ofrece a los expertos en la materia para tomar decisiones informadas.
+</div>""", unsafe_allow_html=True)
