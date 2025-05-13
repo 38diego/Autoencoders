@@ -3,5 +3,6 @@ numpy
 matplotlib
 seaborn
 scikit-learn
-torch
+streamlit==1.32.2
+torch==2.1.2
 plotly
