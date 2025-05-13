@@ -14,6 +14,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.metrics import roc_curve, auc
 
+try:
+    from torch import classes
+except Exception as e:
+    print("Error al importar torch.classes:", e)
+
+
 st.set_page_config(page_title="Detección de anomalias", page_icon="📊", layout="wide")
 
 st.markdown("""
